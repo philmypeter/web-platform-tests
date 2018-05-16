@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<title>DedicatedWorker: ServiceWorker interception</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/service-workers/service-worker/resources/test-helpers.sub.js"></script>
+<script>
+
+// Note that Chrome cannot pass these tests because of https://crbug.com/731599.
+
+// Tests that a dedicated worker should be served by a service worker.
+promise_test(async t => {
+    const kServiceWorkerScriptURL = 'resources/service-worker.js';
+    const kWorkerScriptURL = 'resources/non-existent-script.js';
+
+    const registration = await service_worker_unregister_and_register(
+        t, kServiceWorkerScriptURL, kWorkerScriptURL);
+    add_result_callback(() => registration.unregister());
+    await wait_for_state(t, registration.installing, 'activated');
+
+    const worker = new Worker(kWorkerScriptURL, { type: 'module' });
+    const msg_event = await new Promise((resolve, reject) => {
+      worker.onmessage = resolve;
+      worker.onerror = reject;
+    });
+    assert_equals(msg_event.data, 'LOADED');
+}, 'Module loading for new Worker() should be intercepted by a service worker.');
+
+// Tests that static import should be served by a service worker.
+promise_test(async t => {
+    const kServiceWorkerScriptURL = 'resources/service-worker.js';
+    const kWorkerScriptURL =
+        'resources/static-import-non-existent-script-worker.js';
+
+    const registration = await service_worker_unregister_and_register(
+        t, kServiceWorkerScriptURL, kWorkerScriptURL);
+    add_result_callback(() => registration.unregister());
+    await wait_for_state(t, registration.installing, 'activated');
+
+    // A script to be statically imported by the worker doesn't exist but the
+    // service worker serves it, so the import should succeed.
+    const worker = new Worker(kWorkerScriptURL, { type: 'module' });
+    const msg_event = await new Promise((resolve, reject) => {
+      worker.onmessage = resolve;
+      worker.onerror = reject;
+    });
+    assert_equals(msg_event.data, 'LOADED');
+}, 'Static import should be intercepted by a service worker.');
+
+// Tests that dynamic import should be served by a service worker.
+promise_test(async t => {
+    const kServiceWorkerScriptURL = 'resources/service-worker.js?dynamic';
+    const kWorkerScriptURL = 'resources/dynamic-import-given-url-worker.js';
+
+    const registration = await service_worker_unregister_and_register(
+        t, kServiceWorkerScriptURL, kWorkerScriptURL);
+    add_result_callback(() => registration.unregister());
+    await wait_for_state(t, registration.installing, 'activated');
+
+    const worker = new Worker(kWorkerScriptURL, { type: 'module' });
+    // Ask the worker to run dynamic import. The target script doesn't exist but
+    // the service worker serves it, so the import should succeed.
+    worker.postMessage('./non-existent-script.js');
+    const msg_event = await new Promise((resolve, reject) => {
+      worker.onmessage = resolve;
+      worker.onerror = reject;
+    });
+    assert_equals(msg_event.data, 'LOADED');
+}, 'Dynamic import should be intercepted by a service worker.');
+
+</script>
