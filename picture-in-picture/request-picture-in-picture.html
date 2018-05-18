@@ -46,4 +46,18 @@ promise_test(async t => {
     ]);
   });
 }, 'request Picture-in-Picture consumes user gesture');
+
+promise_test(async t => {
+  const frame = document.createElement('iframe');
+  const frameLoadedPromise = new Promise(resolve => {
+    frame.addEventListener('load', resolve, { once: true });
+    document.body.appendChild(frame);
+  });
+  await frameLoadedPromise;
+
+  const video = await loadVideo(frame.contentDocument);
+  document.body.removeChild(frame);
+  return promise_rejects(t, 'InvalidStateError',
+      requestPictureInPictureWithTrustedClick(video));
+}, 'request Picture-in-Picture rejects when frame is detached');
 </script>

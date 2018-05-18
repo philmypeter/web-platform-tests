@@ -14,9 +14,10 @@ function callWithTrustedClick(callback) {
   });
 }
 
-function loadVideo() {
+function loadVideo(activeDocument) {
   return new Promise(resolve => {
-    let video = document.createElement('video');
+    const document = activeDocument || window.document;
+    const video = document.createElement('video');
     video.src = '/media/movie_5.ogv';
     video.onloadedmetadata = () => {
       resolve(video);
