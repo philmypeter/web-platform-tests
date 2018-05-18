@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/common/get-host-info.sub.js"></script>
+<script src="resources/test-helpers.sub.js"></script>
+<script>
+function resourceUrl(path) {
+    return get_host_info()['HTTPS_ORIGIN'] + base_path() + path;
+}
+
+promise_test(function(t) {
+    const worker_url = 'resources/resource-timing-worker-respondwith-fetch.js';
+    const scope = 'resources/resource-timing-iframe.html';
+    let registration;
+
+    return service_worker_unregister_and_register(t, worker_url, scope)
+      .then(function(r) {
+          registration = r;
+          return wait_for_state(t, r.installing, 'activated');
+        })
+      .then(function() {
+          return with_iframe(scope);
+        })
+      .then(function(frame) {
+          const performance = frame.contentWindow.performance;
+          // The iframe contains dummy.js and not empty.js.
+          // The Service Worker responds to dummy.js with a empty.js fetch.
+          // But ResourceTiming should use the original resource request URL.
+          let entryList = performance.getEntriesByName(resourceUrl('resources/empty.js'));
+          assert_equals(entryList.length, 0, 'There should be no entries for empty.js');
+
+          entryList = performance.getEntriesByName(resourceUrl('resources/dummy.js'));
+          assert_equals(entryList.length, 1, 'There should be one entry for entry for dummy.js');
+          assert_equals(entryList[0].entryType, 'resource');
+
+          // Similarly, the Service Worker responds to missing.png by fetching square.png.
+          entryList = performance.getEntriesByName(resourceUrl('resources/missing.png'));
+          assert_equals(entryList.length, 1, 'There should be one entry for entry for missing.png');
+          assert_equals(entryList[0].entryType, 'resource');
+          entryList = performance.getEntriesByName(resourceUrl('resources/square.png'));
+          assert_equals(entryList.length, 0, 'There should be no entries for square.png');
+
+          // The iframe contains blank.html and ServiceWorker does not handle it.
+          // Therefore, it should still appear in the ResourceTiming entries.
+          entryList = performance.getEntriesByName(resourceUrl('resources/blank.html'));
+          assert_equals(entryList.length, 1, 'There should be one entry for entry for blank.html');
+          assert_equals(entryList[0].entryType, 'resource');
+
+          assert_equals(performance.getEntriesByType('resource').length, 3);
+          frame.remove();
+          return registration.unregister();
+        });
+}, 'Verify Resource Timing names when Service Worker responds with fetch.');
+</script>
